@@ -34,6 +34,9 @@ services:
         environment: 
             url: https://www.simplecto.com
 
+        networks:
+            - web
+
         labels:
             - "traefik.docker.network=web"
             - "traefik.enable=true"
