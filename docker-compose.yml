@@ -1,0 +1,50 @@
+version: '3'
+
+services:
+
+    filebrowser:
+        image: filebrowser/filebrowser
+        container_name: filebrowser
+        restart: unless-stopped
+
+        volumes:
+            - /files:/srv
+            - ./database.db:/database.db
+            - ./filebrowser.json:/.filebrowser.json
+        networks:
+            - web
+        labels:
+            - "traefik.docker.network=web"
+            - "traefik.enable=true"
+            - "traefik.frontend.rule=Host:files.simplecto.com"
+            - "traefik.port=80"
+            - "traefik.default.protocol=http"
+            - "traefik.backend=filebrowser"
+            - "traefik.frontend.headers.SSLRedirect=true"
+            - "traefik.frontend.headers.SSLHost=files.simplecto.com"
+            - "traefik.frontend.headers.SSLForceHost=true"
+
+    ghost:
+        image: ghost:2-alpine
+        container_name: simplecto
+        restart: unless-stopped
+        volumes:
+            - "./ghostdata:/var/lib/ghost/content"
+
+        env: 
+            url: https://www.simplecto.com
+
+        labels:
+            - "traefik.docker.network=web"
+            - "traefik.enable=true"
+            - "traefik.frontend.rule=Host:www.simplecto.com,simplecto.com"
+            - "traefik.port=2368"
+            - "traefik.protocol=http"
+            - "traefik.backend=simplecto"
+            - "traefik.frontend.headers.SSLRedirect=true"
+            - "traefik.frontend.headers.SSLHost=www.simplecto.com"
+            - "traefik.frontend.headers.SSLForceHost=true"
+
+networks:
+    web:
+        external: true
