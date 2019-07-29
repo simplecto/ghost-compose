@@ -31,7 +31,7 @@ services:
         volumes:
             - "./ghostdata:/var/lib/ghost/content"
 
-        env: 
+        environment: 
             url: https://www.simplecto.com
 
         labels:
