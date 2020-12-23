@@ -14,39 +14,95 @@ services:
         networks:
             - web
         labels:
-            - "traefik.docker.network=web"
-            - "traefik.enable=true"
-            - "traefik.frontend.rule=Host:files.simplecto.com"
-            - "traefik.port=80"
-            - "traefik.default.protocol=http"
-            - "traefik.backend=filebrowser"
-            - "traefik.frontend.headers.SSLRedirect=true"
-            - "traefik.frontend.headers.SSLHost=files.simplecto.com"
-            - "traefik.frontend.headers.SSLForceHost=true"
+            # traefik 2 config
+            - traefik.http.routers.filebrowser.rule=Host(`files.simplecto.com`)
+            - traefik.http.routers.filebrowser.tls=true
+            - traefik.http.routers.filebrowser.tls.certresolver=le
+            - traefik.http.services.filebrowser.loadbalancer.server.port=80
+            - traefik.http.routers.filebrowser.middlewares=gzip@docker,securedheaders@docker
+        logging:
+          driver: gelf
+          options:
+            gelf-address: "udp://texas.m3b:12201"
+            tag: simplecto-filebrowser
+
+    static-files:
+
+        image: caddy/caddy:scratch
+        command: caddy file-server --root /files --listen 0.0.0.0:80
+        volumes:
+            - /files:/files:ro
+
+        container_name: static-files
+        restart: unless-stopped
+        networks:
+            - web
+        labels:
+            # traefik 2 config
+            - traefik.http.routers.static-files.rule=(Host(`simplecto.com`,`www.simplecto.com`) && PathPrefix(`/static`))
+            - traefik.http.routers.static-files.tls=true
+            - traefik.http.routers.static-files.tls.certresolver=le
+            - traefik.http.services.static-files.loadbalancer.server.port=80
+
+             # Define a new middleware to strip the URL prefix before sending it to static-files
+            - traefik.http.middlewares.static-files-stripprefix.stripprefix.prefixes=/static
+            - traefik.http.routers.static-files.middlewares=gzip,static-files-stripprefix,simplecto-headers
+        logging:
+          driver: gelf
+          options:
+            gelf-address: "udp://texas.m3b:12201"
+            tag: simplecto-caddy
+
 
     ghost:
-        image: ghost:2-alpine
+        image: ghost:3-alpine
         container_name: simplecto
         restart: unless-stopped
         volumes:
             - "./ghostdata:/var/lib/ghost/content"
 
-        environment: 
+        environment:
             url: https://www.simplecto.com
+            mail__transport: SMTP
+            mail__options__host: smtp.sendgrid.net
+            mail__options__port: 465
+            mail__options__secureConnection: "true"
+            mail__options__auth__user: apikey
+            mail__options__auth__pass: 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
+            mail__from: no-reply@simplecto.com
 
         networks:
             - web
 
         labels:
-            - "traefik.docker.network=web"
-            - "traefik.enable=true"
-            - "traefik.frontend.rule=Host:www.simplecto.com,simplecto.com"
-            - "traefik.port=2368"
-            - "traefik.protocol=http"
-            - "traefik.backend=simplecto"
-            - "traefik.frontend.headers.SSLRedirect=true"
-            - "traefik.frontend.headers.SSLHost=www.simplecto.com"
-            - "traefik.frontend.headers.SSLForceHost=true"
+            # traefik 2 config
+            - traefik.http.routers.simplecto.rule=Host(`simplecto.com`,`www.simplecto.com`)
+            - traefik.http.routers.simplecto.tls=true
+            - traefik.http.routers.simplecto.tls.certresolver=le
+            - traefik.http.services.simplecto.loadbalancer.server.port=2368
+
+            # Redirect non-www to www middleware
+            - traefik.http.middlewares.simplecto-nonwww.redirectregex.regex=^https://simplecto.com/(.*)
+            - traefik.http.middlewares.simplecto-nonwww.redirectregex.replacement=https://www.simplecto.com/$${1}
+            - traefik.http.middlewares.simplecto-nonwww.redirectregex.permanent=true
+
+
+            # Adding in secure headers
+            - traefik.http.middlewares.simplecto-headers.headers.forcestsheader=true
+            - traefik.http.middlewares.simplecto-headers.headers.sslRedirect=true
+            - traefik.http.middlewares.simplecto-headers.headers.STSPreload=true
+            - traefik.http.middlewares.simplecto-headers.headers.ContentTypeNosniff=true
+            - traefik.http.middlewares.simplecto-headers.headers.BrowserXssFilter=true
+            - traefik.http.middlewares.simplecto-headers.headers.STSIncludeSubdomains=true
+            - traefik.http.middlewares.simplecto-headers.headers.stsSeconds=63072000
+            - traefik.http.middlewares.simplecto-headers.headers.frameDeny=true
+            - traefik.http.middlewares.simplecto-headers.headers.browserXssFilter=true
+            - traefik.http.middlewares.simplecto-headers.headers.contentTypeNosniff=true
+
+            # CSP Headers
+#            - "traefik.http.middlewares.simplecto-headers.headers.contentSecurityPolicy=default-src 'none';script-src 'self' 'unsafe-inline' https://www.google-analytics.com https://www.googletagmanager.com https://ssl.google-analytics.com https://stats.g.doubleclick.net https://www.quora.com https://qsbr.fs.quoracdn.net https://assets.calendly.com;img-src 'self' https:;frame-src www.youtube.com reddit.com www.quora.com https://calendly.com;style-src 'self' 'unsafe-inline';font-src 'self';connect-src 'self';"
+
+            - traefik.http.routers.simplecto.middlewares=simplecto-headers,simplecto-nonwww,gzip
 
 networks:
     web:

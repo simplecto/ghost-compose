@@ -20,4 +20,13 @@ this stack:
 These files are hard-coded to my settings (hey, my repo, my rules). I will accept
 pull requests for fixing that...
 
+## My Workflow
+If there is a file I want to link or shar in the blog:
+
+  1. Login on the filebrowser app (files.simplecto.com)
+  1. Upload the file
+  1. Generate the download link, copy
+  1. Goto my blog post
+  1. Paste in the link.
+  1. Done
 
